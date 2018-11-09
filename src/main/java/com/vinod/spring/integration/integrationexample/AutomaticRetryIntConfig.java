@@ -50,10 +50,6 @@ public class AutomaticRetryIntConfig {
         return BindingBuilder.bind(queue).to(exchange).with(queue.getName());
     }
 
-    @Bean
-    RetryTypeRouter retryTypeRouter() {
-        return new RetryTypeRouter();
-    }
 
     @Bean
     IngetionFlowRetryService ingetionFlowRetryService() {
@@ -66,16 +62,6 @@ public class AutomaticRetryIntConfig {
     }
 
     @Bean
-    public MessageChannel channelIntegestion() {
-        return new DirectChannel();
-    }
-
-    @Bean
-    public MessageChannel channelProcessing() {
-        return new DirectChannel();
-    }
-
-    @Bean
     public Jackson2JsonMessageConverter producerJackson2MessageConverter() {
         return new Jackson2JsonMessageConverter();
     }
@@ -83,11 +69,12 @@ public class AutomaticRetryIntConfig {
 
     @Bean
     public IntegrationFlow routerFlow() {
-        return IntegrationFlows.from(Amqp.inboundGateway(connectionFactory,queue()))
+        return IntegrationFlows.from(Amqp.inboundAdapter(connectionFactory,queue()).configureContainer(cont -> cont.concurrentConsumers(1)))
                 .transform(new JsonToObjectTransformer(Test.class))
                 .<Test,String>route(s-> s.getId(),
                         m -> m.subFlowMapping("ingestion", inflow -> inflow.handle(ingetionFlowRetryService(),"printMessage"))
-                .subFlowMapping("processing", proc -> proc.handle(processingFlowRetryService(),"printMessage")))
+                .subFlowMapping("processing", proc -> proc.handle(processingFlowRetryService(),"printMessage"))
+                )
                 .get();
     }
 
