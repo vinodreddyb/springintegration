@@ -3,6 +3,7 @@ package com.vinod.spring.integration.integrationexample;
 import com.vinod.spring.integration.integrationexample.router.RetryTypeRouter;
 import com.vinod.spring.integration.integrationexample.service.IngetionFlowRetryService;
 import com.vinod.spring.integration.integrationexample.service.ProcessingFlowRetryService;
+import com.vinod.spring.integration.integrationexample.service.TestService;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.annotation.EnableRabbit;
 
@@ -66,6 +67,11 @@ public class AutomaticRetryIntConfig {
         return new Jackson2JsonMessageConverter();
     }
 
+    @Bean
+    TestService testService() {
+        return new TestService();
+    }
+
 
     @Bean
     public IntegrationFlow routerFlow() {
@@ -74,10 +80,45 @@ public class AutomaticRetryIntConfig {
                 .<Test,String>route(s-> s.getId(),
                         m -> m.subFlowMapping("ingestion", inflow -> inflow.handle(ingetionFlowRetryService(),"printMessage"))
                 .subFlowMapping("processing", proc -> proc.handle(processingFlowRetryService(),"printMessage"))
+                ).channel(c -> c.direct("test"))
+                .get();
+    }
+
+   /* @Bean
+    public IntegrationFlow routeFlow() {
+        return IntegrationFlows.from(Amqp.inboundAdapter(connectionFactory,queue()).configureContainer(cont -> cont.concurrentConsumers(1)))
+                .transform(new JsonToObjectTransformer(Test.class))
+                .<Test,String>route(s-> s.getId(),
+                        m -> m.channelMapping("ingestion", "ingestion")
+                                .channelMapping("processing", "processing")
                 )
                 .get();
     }
 
+
+    @Bean
+    public IntegrationFlow ingestionFlow() {
+        return  IntegrationFlows.from("ingestion")
+                .handle(ingetionFlowRetryService(),"printMessage")
+                .channel("test")
+                .get();
+    }
+
+    @Bean
+    public IntegrationFlow processingFlow() {
+        return  IntegrationFlows.from("processing")
+                .handle(processingFlowRetryService(),"printMessage")
+
+                .channel("test")
+                .get();
+    }*/
+
+    @Bean
+    public IntegrationFlow testFlow() {
+        return  IntegrationFlows.from("test")
+                .handle(testService(),"test")
+                .get();
+    }
 
 
 
