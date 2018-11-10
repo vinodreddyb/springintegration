@@ -4,6 +4,7 @@ import com.vinod.spring.integration.integrationexample.router.RetryTypeRouter;
 import com.vinod.spring.integration.integrationexample.service.IngetionFlowRetryService;
 import com.vinod.spring.integration.integrationexample.service.ProcessingFlowRetryService;
 import com.vinod.spring.integration.integrationexample.service.TestService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.annotation.EnableRabbit;
 
@@ -19,13 +20,16 @@ import org.springframework.integration.channel.DirectChannel;
 import org.springframework.integration.config.EnableIntegration;
 import org.springframework.integration.dsl.IntegrationFlow;
 import org.springframework.integration.dsl.IntegrationFlows;
+import org.springframework.integration.handler.LoggingHandler;
 import org.springframework.integration.json.JsonToObjectTransformer;
+import org.springframework.integration.json.ObjectToJsonTransformer;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 
 @Configuration
 @EnableIntegration
 @EnableRabbit
+@Slf4j
 public class AutomaticRetryIntConfig {
 
     @Autowired
@@ -33,6 +37,7 @@ public class AutomaticRetryIntConfig {
 
     @Bean
     AmqpAdmin amqpAdmin() {
+
         return new RabbitAdmin(connectionFactory);
     }
 
@@ -80,6 +85,8 @@ public class AutomaticRetryIntConfig {
                 .<Test,String>route(s-> s.getId(),
                         m -> m.subFlowMapping("ingestion", inflow -> inflow.handle(ingetionFlowRetryService(),"printMessage"))
                 .subFlowMapping("processing", proc -> proc.handle(processingFlowRetryService(),"printMessage"))
+                .resolutionRequired(false)
+                                .defaultOutputChannel("error")
                 ).channel(c -> c.direct("test"))
                 .get();
     }
@@ -117,6 +124,15 @@ public class AutomaticRetryIntConfig {
     public IntegrationFlow testFlow() {
         return  IntegrationFlows.from("test")
                 .handle(testService(),"test")
+                .get();
+    }
+
+    @Bean
+    public IntegrationFlow errorFlow() {
+        return  IntegrationFlows.from("error")
+                .transform(new ObjectToJsonTransformer())
+                .log(LoggingHandler.Level.ERROR,"Error in input message. Can't identify the service in IMF",
+                        message ->   message.getPayload())
                 .get();
     }
 
